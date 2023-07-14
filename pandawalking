@@ -1,0 +1,47 @@
+from direct.showbase.ShowBase import ShowBase
+from math import pi,sin,cos
+from direct.task import Task
+from direct.actor.Actor import Actor
+from direct.interval.IntervalGlobal import Sequence
+from panda3d.core import Point3
+
+class MyApp(ShowBase):
+
+    def __init__(self):
+        ShowBase.__init__(self)
+        self.disableMouse()
+        self.g = self.loader.loadModel("models/environment")
+        self.g.reparentTo(self.render)
+        self.g.setScale(0.2, 0.2, 0.2)
+        self.g.setPos(-10,40,0)
+        self.taskMgr.add(self.spinCameraTask,"SpinCameraTask")
+        self.p = Actor("models/panda-model",{"walk": "models/panda-walk4"})
+        self.p.reparentTo(self.render)
+        self.p.setScale(0.006, 0.006, 0.006)
+        self.p.loop("walk")
+        posInterval1 = self.p.posInterval(5, Point3(0, -5, 0),startPos=Point3(0, 5, 0))
+        hprInterval1 = self.p.hprInterval(1, Point3(90, 0, 0),startHpr=Point3(0, 0, 0))
+        
+        posInterval2 = self.p.posInterval(5, Point3(10, -5, 0), startPos=Point3(0, -5, 0))
+        hprInterval2 = self.p.hprInterval(1, Point3(180, 0, 0),startHpr=Point3(90, 0, 0))
+
+        posInterval3 = self.p.posInterval(5, Point3(10, 5, 0),startPos=Point3(10, -5, 0))
+        hprInterval3 = self.p.hprInterval(1, Point3(270, 0, 0),startHpr=Point3(180, 0, 0))
+
+        posInterval4 = self.p.posInterval(5, Point3(0, 5, 0), startPos=Point3(10, 5, 0))        
+        hprInterval4 = self.p.hprInterval(1, Point3(360, 0, 0),startHpr=Point3(270, 0, 0))
+        self.pandaPace = Sequence(posInterval1, hprInterval1, posInterval2, hprInterval2,posInterval3, hprInterval3, posInterval4, hprInterval4,name="pandaPace")
+        self.pandaPace.loop()
+
+    def spinCameraTask(self, task):
+        #angleDegrees = task.time * 1.0
+        #angleRadians = angleDegrees * (pi / 180.0)
+        #self.camera.setPos(20 * sin(angleRadians), -20 * cos(angleRadians), 3)
+        #self.camera.setHpr(angleDegrees, 0, 0)
+        self.camera.setPos(30,-20,2)
+        self.camera.setHpr(45,0,0)
+        return Task.cont
+
+
+app = MyApp()
+app.run()
