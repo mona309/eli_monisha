@@ -1,0 +1,39 @@
+from direct.showbase.ShowBase import ShowBase
+from panda3d.core import TextNode
+import hashlib
+
+class c1(ShowBase):
+    def __init__(self):
+        super().__init__()
+        d='03/09/2005'
+        hd=hashlib.md5(d.encode())
+        f=self.loader.loadFont('cmr12.egg')
+
+        self.g = self.loader.loadModel("models/ripple")
+        self.g.reparentTo(self.render)
+        self.g.setScale(100 , 100 , 100)
+        self.g.setPos(-10 , 40 , 0)
+
+        text=TextNode('A')
+        text.setText('Monisha')      
+        text.setFont(f)
+        text.setTextColor(0 , 0 , 0 , 1)
+        text.setShadow(-0.08, -0.08)
+        text.setShadowColor(1, 1, 1, 1) 
+        np = self.render.attachNewNode(text)
+        np.setScale(0.13)
+        np.setPos(-0.25 , 5 , 0.2)
+        
+        text1=TextNode('B')
+        text1.setText(f'Hashed DOB: {hd.hexdigest()}')
+        text1.setFont(f)
+        text1.setTextColor(0 , 0 , 0 , 1)
+        text1.setShadow(-0.08, -0.08)
+        text1.setShadowColor(1, 1, 1, 1) 
+        np1 = self.render.attachNewNode(text1)
+        np1.setScale(0.13)
+        np1.setPos(-1.4 , 5 , -0.2)
+
+        
+ch = c1()
+ch.run()
