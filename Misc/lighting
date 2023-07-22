@@ -1,0 +1,39 @@
+from direct.showbase.ShowBase import ShowBase
+from direct.actor.Actor import Actor
+from panda3d.core import Vec4, WindowProperties,DirectionalLight
+
+
+class trial(ShowBase):
+    def __init__(self):
+        ShowBase.__init__(self)
+        self.disableMouse()
+
+        #config
+        prop=WindowProperties()
+        prop.setSize(1600, 900)
+        self.win.requestProperties(prop)
+
+        self.a = self.loader.loadModel("models/teapot")
+        self.a.reparentTo(self.render)
+        self.a.setScale(1,1,1)
+        self.a.setPos(0, 30, 0)
+
+        self.e=self.loader.loadModel("models/ripple")
+        self.e.reparentTo(self.render)
+        self.e.setScale(1000, 1000, 1000)
+        self.e.setPos(10, 40, 0)
+       
+        al=DirectionalLight("light")
+        al.setColor(Vec4(0.7,0,0.2,0.3)) 
+            
+        self.anp=self.render.attachNewNode(al)
+        self.render.setLight(self.anp)
+        #self.anp.setScale(1,1,1)
+        #self.anp.setHpr(4.5,-5,0)
+        #self.render.setLight(self.anp)
+        self.render.setShaderAuto()
+
+
+game=trial()
+game.run()
+
