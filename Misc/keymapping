@@ -1,0 +1,73 @@
+from direct.showbase.ShowBase import ShowBase
+from direct.actor.Actor import Actor
+from panda3d.core import Vec3, WindowProperties
+
+
+class trial(ShowBase):
+    def __init__(self):
+        ShowBase.__init__(self)
+        self.disableMouse()
+
+        #config
+        prop=WindowProperties()
+        prop.setSize(1600, 900)
+        self.win.requestProperties(prop)
+
+        self.a = self.loader.loadModel("models/teapot")
+        self.a.reparentTo(self.render)
+        self.a.setScale(1,1,1,)
+        self.a.setPos(0, 30, 0)
+
+        self.e=self.loader.loadModel("models/ripple")
+        self.e.reparentTo(self.render)
+        self.e.setScale(1000, 1000, 1000)
+        self.e.setPos(10, 40, 0)
+
+        self.km={"up" : False,"down" : False,"back": False,"forward" : False,"left" : False,"right" : False,"rotate" : False}
+        self.taskMgr.add(self.update,"update")
+        self.accept("w", self.updateKeyMap, ["up", True])
+        self.accept("w-up", self.updateKeyMap, ["up", False])
+        self.accept("s", self.updateKeyMap, ["down", True])
+        self.accept("s-up", self.updateKeyMap, ["down", False])
+        self.accept("a", self.updateKeyMap, ["left", True])
+        self.accept("a-up", self.updateKeyMap, ["left", False])
+        self.accept("d", self.updateKeyMap, ["right", True])
+        self.accept("d-up", self.updateKeyMap, ["right", False])
+        self.accept("q", self.updateKeyMap, ["back", True])
+        self.accept("q-up", self.updateKeyMap, ["back", False])
+        self.accept("e", self.updateKeyMap, ["forward", True])
+        self.accept("e-up", self.updateKeyMap, ["forward", False])
+        self.accept("space", self.updateKeyMap, ["rotate", True])
+        self.accept("space-up", self.updateKeyMap, ["rotate", False])
+        self.angle=0
+
+    def updateKeyMap(self, controlName, controlState):
+        self.km[controlName] = controlState
+        print (controlName, "set to", controlState)
+
+    def update(self,task):
+        dt = globalClock.getDt()
+
+        if self.km["up"]:
+            self.a.setPos(self.a.getPos() + Vec3(0, 0, 10*dt))
+        if self.km["down"]:
+            self.a.setPos(self.a.getPos() + Vec3(0, 0, -10*dt))
+        if self.km["back"]:
+            self.a.setPos(self.a.getPos() + Vec3(0, -10*dt, 0))
+        if self.km["forward"]:
+            self.a.setPos(self.a.getPos() + Vec3(0, 10.0*dt, 0))
+        if self.km["left"]:
+            self.a.setPos(self.a.getPos() + Vec3(-5.0*dt, 0, 0))
+        if self.km["right"]:
+            self.a.setPos(self.a.getPos() + Vec3(5.0*dt, 0, 0))
+        if self.km["rotate"]:
+            self.angle+=2
+            self.a.setH(self.angle)
+
+        return task.cont
+        
+
+
+game=trial()
+game.run()
+
