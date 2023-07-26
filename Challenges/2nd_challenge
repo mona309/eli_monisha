@@ -9,7 +9,7 @@ class Game(ShowBase):
     def __init__(self):
         super().__init__()
 
-        music = self.loader.loadMusic("models/audio/one.ogg")
+        music = self.loader.loadMusic("file/one.ogg")
 
         self.set_background_color(0, 0, 0.2, 1)
         self.actor = self.loader.loadModel('models/frowney')
