@@ -1,0 +1,96 @@
+
+
+from direct.showbase.ShowBase import ShowBase
+from panda3d.core import PointLight, Vec3, CollisionTube, CollisionNode
+from math import sin, cos
+
+
+class Game(ShowBase):
+    def __init__(self):
+        super().__init__()
+
+        music = self.loader.loadMusic("models/audio/one.ogg")
+
+        self.set_background_color(0, 0, 0.2, 1)
+        self.actor = self.loader.loadModel('models/frowney')
+        self.actor.setPos(0, 0, -2.5)
+        self.actor.reparentTo(self.render)
+
+        self.env = self.loader.loadModel("models/misc/gridBack")
+        self.env.reparentTo(self.render)
+        self.env.setScale(10, 10, 10)
+        self.env.setPos(0, 0, -3)
+
+
+        self.light_model = self.loader.loadModel('models/misc/sphere')
+        self.light_model.setScale(1, 1, 1)
+        self.light_model.reparentTo(self.env)
+
+        self.cam.setPos(0, -12, 0)
+
+
+        self.lightX = 0
+        self.lightSpeed = 0.3
+
+        plight = PointLight("plight")
+        plight.setColor((1, 1, 1, 1))
+        self.plnp = self.render.attachNewNode(plight)
+        self.render.setLight(self.plnp)
+
+        self.taskMgr.add(self.move_light, "move-light")
+
+        self.km = {"back" : False, "forward" : False, "left" : False, "right" : False}
+        
+        self.taskMgr.add(self.update,"update")
+        self.accept("w", self.updateKeyMap, ["forward", True])
+        self.accept("w-up", self.updateKeyMap, ["forward", False])
+        self.accept("s", self.updateKeyMap, ["back", True])
+        self.accept("s-up", self.updateKeyMap, ["back", False])
+        self.accept("a", self.updateKeyMap, ["left", True])
+        self.accept("a-up", self.updateKeyMap, ["left", False])
+        self.accept("d", self.updateKeyMap, ["right", True])
+        self.accept("d-up", self.updateKeyMap, ["right", False])
+        self.angle=0
+
+
+
+    def move_light(self, task):
+
+        dt = globalClock.getDt()
+
+        self.plnp.setPos(cos(self.lightX)*6, 0, sin(self.lightX)*6)
+        self.light_model.setPos(self.plnp.getPos())
+        self.lightX += self.lightSpeed * dt
+
+        return task.cont
+    
+
+
+    def updateKeyMap(self, controlName, controlState):
+
+        self.km[controlName] = controlState
+        print (controlName, "set to", controlState)
+
+
+
+
+    def update(self,task):
+        dt = globalClock.getDt()
+
+        if self.km["back"]:
+            self.actor.setPos(self.actor.getPos() + Vec3(0, -10*dt, 0))
+        if self.km["forward"]:
+            self.actor.setPos(self.actor.getPos() + Vec3(0, 10.0*dt, 0))
+        if self.km["left"]:
+            self.actor.setPos(self.actor.getPos() + Vec3(-5.0*dt, 0, 0))
+        if self.km["right"]:
+            self.actor.setPos(self.actor.getPos() + Vec3(5.0*dt, 0, 0))
+
+        return task.cont
+
+
+    
+
+
+game = Game()
+game.run()
