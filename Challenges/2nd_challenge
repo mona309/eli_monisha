@@ -1,15 +1,13 @@
 
 
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import PointLight, Vec3, CollisionTube, CollisionNode
-from math import sin, cos
+from panda3d.core import PointLight,Vec3,CollisionTube,CollisionNode
+import math
 
 
-class Game(ShowBase):
+class SimplePointLight(ShowBase):
     def __init__(self):
-        super().__init__()
-
-        music = self.loader.loadMusic("file/one.ogg")
+        super().__init__()     
 
         self.set_background_color(0, 0, 0.2, 1)
         self.actor = self.loader.loadModel('models/frowney')
@@ -18,29 +16,28 @@ class Game(ShowBase):
 
         self.env = self.loader.loadModel("models/misc/gridBack")
         self.env.reparentTo(self.render)
-        self.env.setScale(10, 10, 10)
-        self.env.setPos(0, 0, -3)
+        self.env.setScale(10,10,10)
+        self.env.setPos(0,0,-3)
 
 
         self.light_model = self.loader.loadModel('models/misc/sphere')
-        self.light_model.setScale(1, 1, 1)
+        self.light_model.setScale(1,1,1)
         self.light_model.reparentTo(self.env)
 
         self.cam.setPos(0, -12, 0)
 
 
         self.lightX = 0
-        self.lightSpeed = 0.3
+        self.lightSpeed = 0.2
 
         plight = PointLight("plight")
-        plight.setColor((1, 1, 1, 1))
+        plight.setColor((1,1,1,1))
         self.plnp = self.render.attachNewNode(plight)
         self.render.setLight(self.plnp)
 
         self.taskMgr.add(self.move_light, "move-light")
 
-        self.km = {"back" : False, "forward" : False, "left" : False, "right" : False}
-        
+        self.km={"back": False,"forward" : False,"left" : False,"right" : False}
         self.taskMgr.add(self.update,"update")
         self.accept("w", self.updateKeyMap, ["forward", True])
         self.accept("w-up", self.updateKeyMap, ["forward", False])
@@ -52,15 +49,33 @@ class Game(ShowBase):
         self.accept("d-up", self.updateKeyMap, ["right", False])
         self.angle=0
 
+        global music, nightmusic
 
+        music = self.loader.loadMusic("file/one.ogg")
+        music.setVolume(0.5)
+        
+        nightmusic = self.loader.loadMusic("file/two.ogg")
+        nightmusic.setVolume(0.5)
+        
 
     def move_light(self, task):
 
         dt = globalClock.getDt()
 
-        self.plnp.setPos(cos(self.lightX)*6, 0, sin(self.lightX)*6)
+        self.plnp.setPos(math.cos(self.lightX)*100, 0,math.sin(self.lightX)*100)
         self.light_model.setPos(self.plnp.getPos())
         self.lightX += self.lightSpeed * dt
+        print(self.plnp.getX())
+
+        if math.ceil(self.plnp.getX())==100.0:
+
+            nightmusic.stop()
+            music.play() 
+
+        elif math.floor(self.plnp.getX())==-100.0:
+            
+            music.stop()
+            nightmusic.play()
 
         return task.cont
     
@@ -89,8 +104,19 @@ class Game(ShowBase):
         return task.cont
 
 
+    def sounds(self):
+        while True:
+            music = self.loader.loadMusic("file/one.ogg")
+            music.setVolume(0.5)
+            music.setTime(3)
+            music.play()
+            nightmusic = self.loader.loadMusic("file/two.ogg")
+            nightmusic.setVolume(0.5)
+            nightmusic.setTime(3)
+            nightmusic.play()
+
     
 
 
-game = Game()
+game = SimplePointLight()
 game.run()
