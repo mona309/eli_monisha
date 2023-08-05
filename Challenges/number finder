@@ -1,0 +1,77 @@
+from direct.showbase.ShowBase import ShowBase
+from panda3d.core import loadPrcFile,Vec3
+import sys
+loadPrcFile('conf.prc')
+
+class FloorPlan(ShowBase):
+
+
+    def __init__(self):
+        super().__init__()
+        self.cam.setPos(0, -40, 5)
+        self.setBackgroundColor(0, 0, 0, 1)
+        self.a = self.loader.loadModel('./floorplan.glb')
+        self.a.setH(90)
+        self.a.setP(90)
+        self.a.reparentTo(self.render)
+        self.accept('m', self.quit_program)
+        self.km = {"up" : False,
+                   "down" : False,
+                   "left" : False,
+                   "right" : False,
+                   "mleft" : False,
+                   "mright" : False,
+                   "rotate":False}
+
+        self.accept("w", self.updateKeyMap, ["up", True])
+        self.accept("w-up", self.updateKeyMap, ["up", False])
+        self.accept("s", self.updateKeyMap, ["down", True])
+        self.accept("s-up", self.updateKeyMap, ["down", False])
+        self.accept("a", self.updateKeyMap, ["left", True])
+        self.accept("a-up", self.updateKeyMap, ["left", False])
+        self.accept("d", self.updateKeyMap, ["right", True])
+        self.accept("d-up", self.updateKeyMap, ["right", False])
+        self.accept("q", self.updateKeyMap, ["mleft", True])
+        self.accept("q-up", self.updateKeyMap, ["mleft", False])
+        self.accept("e", self.updateKeyMap, ["mright", True])
+        self.accept("e-up", self.updateKeyMap, ["mright", False])
+        self.accept("r", self.updateKeyMap, ["rotate", True])
+        self.accept("r-up", self.updateKeyMap, ["rotate", False])
+        self.angle1=0
+        self.angle2=0
+        self.updateTask = self.taskMgr.add(self.update, "update")
+
+
+    def updateKeyMap(self, controlName, controlState):
+        self.km[controlName] = controlState
+        print (controlName, "set to", controlState)
+
+    def update(self, task):
+        dt = globalClock.getDt()
+
+        if self.km["up"]:
+            self.a.setPos(self.a.getPos() + Vec3(0, -10*dt, 0 ))
+        if self.km["down"]:
+            self.a.setPos(self.a.getPos() + Vec3(0, 10*dt, 0))
+        if self.km["right"]:
+            self.a.setPos(self.a.getPos() + Vec3(-5.0*dt, 0, 0))
+        if self.km["left"]:
+            self.a.setPos(self.a.getPos() + Vec3(5.0*dt, 0, 0))
+        if self.km["mright"]:
+            self.angle1-=2
+            self.cam.setH(self.angle1)
+        if self.km["mleft"]:
+            self.angle1+=2
+            self.cam.setH(self.angle1)
+        if self.km["rotate"]:
+            self.angle2+=2
+            self.cam.setP(self.angle2)
+
+        return task.cont
+
+    def quit_program(self):
+        sys.exit(0)
+
+
+game = FloorPlan()
+game.run()
