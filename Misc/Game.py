@@ -4,6 +4,7 @@ from panda3d.core import Vec4, Vec3, WindowProperties, AmbientLight, Directional
 from panda3d.core import CollisionSphere, CollisionNode,CollisionTraverser, CollisionHandlerPusher,CollisionTube
 from GameObject import *
 
+
 class Game(ShowBase):
     def __init__(self):
         ShowBase.__init__(self)
@@ -114,7 +115,9 @@ class Game(ShowBase):
 
     def update(self, task):
         dt = globalClock.getDt()
+
         self.player.update(self.keyMap, dt)
+
         self.tempEnemy.update(self.player, dt)
 
         return task.cont
