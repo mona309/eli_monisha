@@ -2,11 +2,12 @@ from direct.showbase.ShowBase import ShowBase
 from direct.actor.Actor import Actor
 from direct.gui.OnscreenText import OnscreenText
 from direct.gui.OnscreenImage import OnscreenImage
-from panda3d.core import TextNode
-from panda3d.core import BitMask32, Vec3,Vec2, Plane, Point3
+from panda3d.core import TextNode, PointLight
+from panda3d.core import BitMask32,Vec4, Vec3,Vec2, Plane, Point3
 from panda3d.core import CollisionSphere, CollisionNode
 import math, random
 from panda3d.core import CollisionRay, CollisionHandlerQueue, CollisionSegment
+
 friction = 150.0
 
 class GameObject():
@@ -129,7 +130,39 @@ class Player(GameObject):
 
         self.yVector = Vec2(0, 1)
 
+        self.score = 0
 
+        self.scoreUI = OnscreenText(text = "0", pos = (-1.3, 0.825), mayChange = True, align = TextNode.ALeft)
+
+        self.healthIcons = []
+
+        for i in range(self.maxHealth):
+            icon = OnscreenImage(image = "UI/health.png", pos = (-1.275 + i*0.075, 0, 0.95), scale = 0.04)
+            icon.setTransparency(True)
+            self.healthIcons.append(icon)
+
+        self.beamHitModel = loader.loadModel("Models/Misc/bambooLaserHit")
+        self.beamHitModel.reparentTo(render)
+        self.beamHitModel.setZ(1.5)
+        self.beamHitModel.setLightOff()
+        self.beamHitModel.hide()
+
+        self.beamHitPulseRate = 0.15
+        self.beamHitTimer = 0
+
+        self.beamHitLight = PointLight("beamHitLight")
+        self.beamHitLight.setColor(Vec4(0.1, 1.0, 0.2, 1))
+        self.beamHitLight.setAttenuation((1.0, 0.1, 0.5))
+        self.beamHitLightNodePath = render.attachNewNode(self.beamHitLight)
+
+        self.damageTakenModel = loader.loadModel("Models/Misc/playerHit")
+        self.damageTakenModel.setLightOff()
+        self.damageTakenModel.setZ(1.0)
+        self.damageTakenModel.reparentTo(self.actor)
+        self.damageTakenModel.hide()
+
+        self.damageTakenModelTimer = 0
+        self.damageTakenModelDuration = 0.15
 
     def update(self, keys, dt):
         GameObject.update(self, dt)
@@ -162,28 +195,47 @@ class Player(GameObject):
             if not standControl.isPlaying():
                 self.actor.stop("walk")
                 self.actor.loop("stand")
-
         
         if keys["shoot"]:
-
             if self.rayQueue.getNumEntries() > 0:
+
+                scoredHit = False
                 self.rayQueue.sortEntries()
                 rayHit = self.rayQueue.getEntry(0)
-                hitPos = rayHit.getSurfacePoint(self.render)
+                hitPos = rayHit.getSurfacePoint(render)
                 hitNodePath = rayHit.getIntoNodePath()
-                
+
                 if hitNodePath.hasPythonTag("owner"):
                     hitObject = hitNodePath.getPythonTag("owner")
-                    
+
                     if not isinstance(hitObject, TrapEnemy):
                         hitObject.alterHealth(self.damagePerSecond*dt)
-                
+                        scoredHit = True
+
                 beamLength = (hitPos - self.actor.getPos()).length()
                 self.beamModel.setSy(beamLength)
-
                 self.beamModel.show()
+
+                if scoredHit:
+                    self.beamHitModel.show()
+                    self.beamHitModel.setPos(hitPos)
+                    self.beamHitLightNodePath.setPos(hitPos + Vec3(0, 0, 0.5))
+
+                    if not render.hasLight(self.beamHitLightNodePath):
+                        render.setLight(self.beamHitLightNodePath)
+
+                else:
+
+                    if render.hasLight(self.beamHitLightNodePath):
+                        render.clearLight(self.beamHitLightNodePath)
+
+                    self.beamHitModel.hide()
         else:
+            if render.hasLight(self.beamHitLightNodePath):
+                render.clearLight(self.beamHitLightNodePath)
+
             self.beamModel.hide()
+            self.beamHitModel.hide()
 
         mouseWatcher = base.mouseWatcherNode
         if mouseWatcher.hasMouse():
@@ -214,10 +266,51 @@ class Player(GameObject):
 
         self.lastMousePos = mousePos
 
+        self.beamHitTimer -= dt
+
+        if self.beamHitTimer <= 0:
+            self.beamHitTimer = self.beamHitPulseRate
+            self.beamHitModel.setH(random.uniform(0.0, 360.0))
+
+        self.beamHitModel.setScale(math.sin(self.beamHitTimer*3.142/self.beamHitPulseRate)*0.4 + 0.9)
+
+        if self.damageTakenModelTimer > 0:
+            self.damageTakenModelTimer -= dt
+            self.damageTakenModel.setScale(2.0 - self.damageTakenModelTimer/self.damageTakenModelDuration)
+            if self.damageTakenModelTimer <= 0:
+                self.damageTakenModel.hide()
+
     def cleanup(self):
 
         base.cTrav.removeCollider(self.rayNodePath)
         GameObject.cleanup(self)
+        self.scoreUI.removeNode()
+
+        for icon in self.healthIcons:
+            icon.removeNode()
+
+        self.beamHitModel.removeNode()
+        render.clearLight(self.beamHitLightNodePath)
+        self.beamHitLightNodePath.removeNode()
+
+    def updateScore(self):
+
+        self.scoreUI.setText(str(self.score))
+
+    def alterHealth(self, dHealth):
+
+        GameObject.alterHealth(self, dHealth)
+        self.updateHealthUI()
+        self.damageTakenModel.show()
+        self.damageTakenModel.setH(random.uniform(0.0, 360.0))
+        self.damageTakenModelTimer = self.damageTakenModelDuration
+
+    def updateHealthUI(self):
+        for index, icon in enumerate(self.healthIcons):
+            if index < self.health:
+                icon.show()
+            else:
+                icon.hide()
 
 class Enemy(GameObject):
     def __init__(self, pos, modelname, modelani, maxhp, maxsp, collidername):
@@ -345,6 +438,16 @@ class WalkingEnemy(Enemy):
 
         GameObject.cleanup(self)
 
+    def alterHealth(self, dHealth):
+        Enemy.alterHealth(self, dHealth)
+        self.updateHealthVisual()
+
+    def updateHealthVisual(self):
+        perc = self.health/self.maxHealth
+        if perc < 0:
+            perc = 0
+        self.actor.setColorScale(perc, perc, perc, 1)
+
 class TrapEnemy(Enemy):
     def __init__(self, pos):
         Enemy.__init__(self, pos,"Models/Misc/trap",{"stand" : "Models/Misc/trap-stand","walk" : "Models/Misc/trap-walk",},100.0,10.0,"trapEnemy")
@@ -391,5 +494,5 @@ class TrapEnemy(Enemy):
     def alterHealth(self, dHealth):
         pass
 
-game=()
+game=GameObject()
 game.run()
