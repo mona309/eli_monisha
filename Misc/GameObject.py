@@ -391,5 +391,5 @@ class TrapEnemy(Enemy):
     def alterHealth(self, dHealth):
         pass
 
-game=()
+game=GameObject()
 game.run()
