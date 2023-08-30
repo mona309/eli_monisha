@@ -2,7 +2,7 @@ from direct.showbase.ShowBase import ShowBase
 from direct.actor.Actor import Actor
 from direct.gui.OnscreenText import OnscreenText
 from direct.gui.OnscreenImage import OnscreenImage
-from panda3d.core import TextNode, PointLight
+from panda3d.core import TextNode, PointLight, AudioSound
 from panda3d.core import BitMask32,Vec4, Vec3,Vec2, Plane, Point3
 from panda3d.core import CollisionSphere, CollisionNode
 import math, random
@@ -11,59 +11,62 @@ from panda3d.core import CollisionRay, CollisionHandlerQueue, CollisionSegment
 friction = 150.0
 
 class GameObject():
-    def __init__(self, pos, modelname, modelani, maxhp, maxsp, collidername):
+    def __init__(self, pos, modelName, modelAnims, maxHealth, maxSpeed, colliderName):
         
-        self.Actor = Actor(modelname,modelani)
-        self.actor.reparentTo(self.render)
+        self.actor = Actor(modelName, modelAnims)
+        self.actor.reparentTo(render)
         self.actor.setPos(pos)
 
-        self.maxHP = maxhp
-        self.health = maxhp
+        self.maxHealth = maxHealth
+        self.health = maxHealth
 
-        self.maxSP = maxsp
+        self.maxSpeed = maxSpeed
 
         self.velocity = Vec3(0, 0, 0)
-        self.acc = 300
+        self.acceleration = 300.0
 
         self.walking = False
 
-        colliderNode = CollisionNode(collidername)
+        colliderNode = CollisionNode(colliderName)
         colliderNode.addSolid(CollisionSphere(0, 0, 0, 0.3))
         self.collider = self.actor.attachNewNode(colliderNode)
-        self.collider.setPythonTag("owner",self)
+        self.collider.setPythonTag("owner", self)
 
-        self.tempTrap = TrapEnemy(Vec3(-2, 7, 0))
+        self.deathSound = None
 
     def update(self,dt):
 
         speed = self.velocity.length()
 
-        #checking max speed
-        if speed > self.maxSP : 
+        if speed > self.maxSpeed:
             self.velocity.normalize()
-            self.velocity *= self.maxSP
-            speed = self.maxSP
+            self.velocity *= self.maxSpeed
+            speed = self.maxSpeed
 
-        #friction if walking
         if not self.walking:
-            frictionval = friction*dt
-            if frictionval > speed:
+            frictionVal = FRICTION*dt
+
+            if frictionVal > speed:
                 self.velocity.set(0, 0, 0)
+
             else:
-                frictionvec = -self.velocity
-                frictionvec.normalize()
-                frictionvec *= frictionval
-                self.velocity += frictionvec
+                frictionVec = -self.velocity
+                frictionVec.normalize()
+                frictionVec *= frictionVal
+                self.velocity += frictionVec
 
         self.actor.setPos(self.actor.getPos() + self.velocity*dt)
-        
-        self.tempTrap.update(self.player, dt)
 
     def alterhp(self,dhealth):
 
+        previousHealth = self.health
         self.health += dhealth
+
         if self.health > self.maxHP:
             self.health = self.maxHP
+
+        if previousHealth > 0 and self.health <= 0 and self.deathSound is not None:
+            self.deathSound.play()
     
     def cleanup(self):
         if self.collider is not None and not self.collider.isEmpty():
@@ -137,32 +140,34 @@ class Player(GameObject):
         self.healthIcons = []
 
         for i in range(self.maxHealth):
-            icon = OnscreenImage(image = "UI/health.png", pos = (-1.275 + i*0.075, 0, 0.95), scale = 0.04)
+            icon = OnscreenImage(image = "health.png", pos = (-1.275 + i*0.075, 0, 0.95), scale = 0.04)
             icon.setTransparency(True)
             self.healthIcons.append(icon)
 
         self.beamHitModel = loader.loadModel("Models/Misc/bambooLaserHit")
         self.beamHitModel.reparentTo(render)
-        self.beamHitModel.setZ(1.5)
+        self.beamHitModel.setZ(1.0)
         self.beamHitModel.setLightOff()
         self.beamHitModel.hide()
 
-        self.beamHitPulseRate = 0.15
-        self.beamHitTimer = 0
+        self.damageTakenModelTimer = 0
+        self.damageTakenModelDuration = 0.15
+
+        self.laserSoundNoHit = loader.loadSfx("Sounds/laserNoHit.ogg")
+        self.laserSoundNoHit.setLoop(True)
+        self.laserSoundHit = loader.loadSfx("Sounds/laserHit.ogg")
+        self.laserSoundHit.setLoop(True)
 
         self.beamHitLight = PointLight("beamHitLight")
         self.beamHitLight.setColor(Vec4(0.1, 1.0, 0.2, 1))
         self.beamHitLight.setAttenuation((1.0, 0.1, 0.5))
         self.beamHitLightNodePath = render.attachNewNode(self.beamHitLight)
 
-        self.damageTakenModel = loader.loadModel("Models/Misc/playerHit")
-        self.damageTakenModel.setLightOff()
-        self.damageTakenModel.setZ(1.0)
-        self.damageTakenModel.reparentTo(self.actor)
-        self.damageTakenModel.hide()
+        self.hurtSound = loader.loadSfx("Sounds/FemaleDmgNoise.ogg")
 
-        self.damageTakenModelTimer = 0
-        self.damageTakenModelDuration = 0.15
+        self.yVector = Vec2(0, 1)
+
+        self.actor.loop("stand")
 
     def update(self, keys, dt):
         GameObject.update(self, dt)
@@ -195,54 +200,14 @@ class Player(GameObject):
             if not standControl.isPlaying():
                 self.actor.stop("walk")
                 self.actor.loop("stand")
-        
-        if keys["shoot"]:
-            if self.rayQueue.getNumEntries() > 0:
-
-                scoredHit = False
-                self.rayQueue.sortEntries()
-                rayHit = self.rayQueue.getEntry(0)
-                hitPos = rayHit.getSurfacePoint(render)
-                hitNodePath = rayHit.getIntoNodePath()
-
-                if hitNodePath.hasPythonTag("owner"):
-                    hitObject = hitNodePath.getPythonTag("owner")
-
-                    if not isinstance(hitObject, TrapEnemy):
-                        hitObject.alterHealth(self.damagePerSecond*dt)
-                        scoredHit = True
-
-                beamLength = (hitPos - self.actor.getPos()).length()
-                self.beamModel.setSy(beamLength)
-                self.beamModel.show()
-
-                if scoredHit:
-                    self.beamHitModel.show()
-                    self.beamHitModel.setPos(hitPos)
-                    self.beamHitLightNodePath.setPos(hitPos + Vec3(0, 0, 0.5))
-
-                    if not render.hasLight(self.beamHitLightNodePath):
-                        render.setLight(self.beamHitLightNodePath)
-
-                else:
-
-                    if render.hasLight(self.beamHitLightNodePath):
-                        render.clearLight(self.beamHitLightNodePath)
-
-                    self.beamHitModel.hide()
-        else:
-            if render.hasLight(self.beamHitLightNodePath):
-                render.clearLight(self.beamHitLightNodePath)
-
-            self.beamModel.hide()
-            self.beamHitModel.hide()
 
         mouseWatcher = base.mouseWatcherNode
+
         if mouseWatcher.hasMouse():
             mousePos = mouseWatcher.getMouse()
         else:
             mousePos = self.lastMousePos
-        
+
         mousePos3D = Point3()
         nearPoint = Point3()
         farPoint = Point3()
@@ -250,15 +215,93 @@ class Player(GameObject):
         base.camLens.extrude(mousePos, nearPoint, farPoint)
         self.groundPlane.intersectsLine(mousePos3D, render.getRelativePoint(base.camera, nearPoint), render.getRelativePoint(base.camera, farPoint))
 
-
         firingVector = Vec3(mousePos3D - self.actor.getPos())
         firingVector2D = firingVector.getXy()
         firingVector2D.normalize()
         firingVector.normalize()
 
         heading = self.yVector.signedAngleDeg(firingVector2D)
-
         self.actor.setH(heading)
+        self.beamHitTimer -= dt
+
+        if self.beamHitTimer <= 0:
+            self.beamHitTimer = self.beamHitPulseRate
+            self.beamHitModel.setH(random.uniform(0.0, 360.0))
+        
+        self.beamHitModel.setScale(math.sin(self.beamHitTimer*3.142/self.beamHitPulseRate)*0.4 + 0.9)
+        
+        if keys["shoot"]:
+            if self.rayQueue.getNumEntries() > 0:
+                scoredHit = False
+
+                self.rayQueue.sortEntries()
+                rayHit = self.rayQueue.getEntry(0)
+                hitPos = rayHit.getSurfacePoint(render)
+
+                hitNodePath = rayHit.getIntoNodePath()
+                if hitNodePath.hasPythonTag("owner"):
+                    hitObject = hitNodePath.getPythonTag("owner")
+                    if not isinstance(hitObject, TrapEnemy):
+                        hitObject.alterHealth(self.damagePerSecond*dt)
+                        scoredHit = True
+
+                beamLength = (hitPos - self.actor.getPos()).length()
+                self.beamModel.setSy(beamLength)
+
+                self.beamModel.show()
+
+                if scoredHit:
+
+                    if self.laserSoundNoHit.status() == AudioSound.PLAYING:
+                        self.laserSoundNoHit.stop()
+
+                    if self.laserSoundHit.status() != AudioSound.PLAYING:
+                        self.laserSoundHit.play()
+
+                    self.beamHitModel.show()
+
+                    self.beamHitModel.setPos(hitPos)
+                    self.beamHitLightNodePath.setPos(hitPos + Vec3(0, 0, 0.5))
+
+                    if not render.hasLight(self.beamHitLightNodePath):
+                        render.setLight(self.beamHitLightNodePath)
+                
+                else:
+
+                    if self.laserSoundHit.status() == AudioSound.PLAYING:
+                        self.laserSoundHit.stop()
+
+                    if self.laserSoundNoHit.status() != AudioSound.PLAYING:
+                        self.laserSoundNoHit.play()
+
+                    if render.hasLight(self.beamHitLightNodePath):
+                        render.clearLight(self.beamHitLightNodePath)
+
+                    self.beamHitModel.hide()
+
+        else:
+            if render.hasLight(self.beamHitLightNodePath):
+                render.clearLight(self.beamHitLightNodePath)
+
+            self.beamModel.hide()
+            self.beamHitModel.hide()
+
+            if self.laserSoundNoHit.status() == AudioSound.PLAYING:
+                self.laserSoundNoHit.stop()
+            if self.laserSoundHit.status() == AudioSound.PLAYING:
+                self.laserSoundHit.stop()
+
+        if firingVector.length() > 0.001:
+            self.ray.setOrigin(self.actor.getPos())
+            self.ray.setDirection(firingVector)
+
+        self.lastMousePos = mousePos
+
+        if self.damageTakenModelTimer > 0:
+            self.damageTakenModelTimer -= dt
+            self.damageTakenModel.setScale(2.0 - self.damageTakenModelTimer/self.damageTakenModelDuration)
+            if self.damageTakenModelTimer <= 0:
+                self.damageTakenModel.hide()
 
         if firingVector.length() > 0.001:
             self.ray.setOrigin(self.actor.getPos())
@@ -282,16 +325,19 @@ class Player(GameObject):
 
     def cleanup(self):
 
-        base.cTrav.removeCollider(self.rayNodePath)
-        GameObject.cleanup(self)
         self.scoreUI.removeNode()
 
         for icon in self.healthIcons:
             icon.removeNode()
 
         self.beamHitModel.removeNode()
+        base.cTrav.removeCollider(self.rayNodePath)
+        self.laserSoundHit.stop()
+        self.laserSoundNoHit.stop()
         render.clearLight(self.beamHitLightNodePath)
         self.beamHitLightNodePath.removeNode()
+
+        GameObject.cleanup(self)
 
     def updateScore(self):
 
@@ -304,6 +350,7 @@ class Player(GameObject):
         self.damageTakenModel.show()
         self.damageTakenModel.setH(random.uniform(0.0, 360.0))
         self.damageTakenModelTimer = self.damageTakenModelDuration
+        self.hurtSound.play()
 
     def updateHealthUI(self):
         for index, icon in enumerate(self.healthIcons):
@@ -313,10 +360,8 @@ class Player(GameObject):
                 icon.hide()
 
 class Enemy(GameObject):
-    def __init__(self, pos, modelname, modelani, maxhp, maxsp, collidername):
-        
-        GameObject.__init__(self, pos, modelname, modelani, maxhp, maxsp, collidername)
-
+    def __init__(self, pos, modelName, modelAnims, maxHealth, maxSpeed, colliderName):
+        GameObject.__init__(self, pos, modelName, modelAnims, maxHealth, maxSpeed, colliderName)
         self.scoreValue = 1
 
     def update(self, player, dt):
@@ -348,10 +393,11 @@ class WalkingEnemy(Enemy):
         Enemy.__init__(self, pos,"Models/Misc/simpleEnemy",{"stand" : "Models/Misc/simpleEnemy-stand","walk" : "Models/Misc/simpleEnemy-walk","attack" : "Models/Misc/simpleEnemy-attack","die" : "Models/Misc/simpleEnemy-die","spawn" : "Models/Misc/simpleEnemy-spawn"}, 3.0,7.0,"walkingEnemy")
 
         self.attackDistance = 0.75
-
+        self.attackDelay = 0.3
+        self.attackDelayTimer = 0
+        self.attackWaitTimer = 0
         self.acceleration = 100.0
 
-        self.yVector = Vec2(0, 1)
         mask = BitMask32()
         mask.setBit(2)
 
@@ -378,11 +424,17 @@ class WalkingEnemy(Enemy):
 
         self.attackDamage = -1
 
-        self.attackDelay = 0.3
-        self.attackDelayTimer = 0
-        self.attackWaitTimer = 0
+        self.deathSound = loader.loadSfx("Sounds/enemyDie.ogg")
+        self.attackSound = loader.loadSfx("Sounds/enemyAttack.ogg")
+        self.yVector = Vec2(0, 1)
+
+        self.actor.play("spawn")
 
     def runLogic(self, player, dt):
+
+        spawnControl = self.actor.getAnimControl("spawn")
+        if spawnControl is not None and spawnControl.isPlaying():
+            return
 
         vectorToPlayer = player.actor.getPos() - self.actor.getPos()
         vectorToPlayer2D = vectorToPlayer.getXy()
@@ -426,10 +478,9 @@ class WalkingEnemy(Enemy):
                     self.attackWaitTimer = random.uniform(0.5, 0.7)
                     self.attackDelayTimer = self.attackDelay
                     self.actor.play("attack")
+                    self.attackSound.play()
 
         self.actor.setH(heading)
-        self.attackSegment.setPointA(self.actor.getPos())
-        self.attackSegment.setPointB(self.actor.getPos() + self.actor.getQuat().getForward()*self.attackDistance)
     
     def cleanup(self):
 
@@ -452,13 +503,6 @@ class TrapEnemy(Enemy):
     def __init__(self, pos):
         Enemy.__init__(self, pos,"Models/Misc/trap",{"stand" : "Models/Misc/trap-stand","walk" : "Models/Misc/trap-walk",},100.0,10.0,"trapEnemy")
 
-        base.pusher.addCollider(self.collider, self.actor)
-        base.cTrav.addCollider(self.collider, base.pusher)
-
-        self.moveInX = False
-        self.moveDirection = 0
-        self.ignorePlayer = False
-
         mask = BitMask32()
         mask.setBit(2)
         mask.setBit(1)
@@ -470,6 +514,18 @@ class TrapEnemy(Enemy):
         mask.setBit(1)
 
         self.collider.node().setFromCollideMask(mask)
+
+        base.pusher.addCollider(self.collider, self.actor)
+        base.cTrav.addCollider(self.collider, base.pusher)
+
+        self.moveInX = False
+        self.moveDirection = 0
+        self.ignorePlayer = False
+
+        self.impactSound = loader.loadSfx("Sounds/trapHitsSomething.ogg")
+        self.stopSound = loader.loadSfx("Sounds/trapStop.ogg")
+        self.movementSound = loader.loadSfx("Sounds/trapSlide.ogg")
+        self.movementSound.setLoop(True)
 
     def runLogic(self, player, dt):
         if self.moveDirection != 0:
@@ -490,9 +546,15 @@ class TrapEnemy(Enemy):
 
             if abs(detector) < 0.5:
                 self.moveDirection = math.copysign(1, movement)
+                self.movementSound.play()
 
     def alterHealth(self, dHealth):
         pass
+
+    def cleanup(self):
+
+        self.movementSound.stop()
+        Enemy.cleanup(self)
 
 game=GameObject()
 game.run()
